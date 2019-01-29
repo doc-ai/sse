@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	backoff "gopkg.in/cenkalti/backoff.v1"
 )
 
@@ -42,6 +43,7 @@ type Client struct {
 
 // NewClient creates a new client
 func NewClient(url string) *Client {
+	log.SetFormatter(&log.JSONFormatter{})
 	return &Client{
 		URL:        url,
 		Connection: &http.Client{},
@@ -55,9 +57,15 @@ func (c *Client) Subscribe(stream string, handler func(msg *Event)) error {
 	operation := func() error {
 		resp, err := c.request(stream)
 		if err != nil {
+			log.WithError(err).Error("sse:Subscribe: request error")
 			return err
 		}
 		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			log.Error("sse:Subscribe: response error, status:", resp.StatusCode)
+			return errors.New("sse:Subscribe: could not connect to stream")
+		}
 
 		reader := NewEventStreamReader(resp.Body)
 
@@ -104,13 +112,15 @@ func (c *Client) SubscribeChan(stream string, ch chan *Event) error {
 		operation := func() error {
 			resp, err := c.request(stream)
 			if err != nil {
+				log.WithError(err).Error("sse:SubscribeChan: request error")
 				c.cleanup(resp, ch)
 				return err
 			}
 
 			if resp.StatusCode != 200 {
+				log.Error("sse:SubscribeChan: response error, status:", resp.StatusCode)
 				c.cleanup(resp, ch)
-				return errors.New("could not connect to stream")
+				return errors.New("sse:SubscribeChan: could not connect to stream")
 			}
 
 			if !connected {
