@@ -73,6 +73,7 @@ func (c *Client) Subscribe(stream string, handler func(msg *Event)) error {
 			// Read each new line and process the type of event
 			event, err := reader.ReadEvent()
 			if err != nil {
+				log.WithError(err).Error("sse:Subscribe: reader error")
 				if err == io.EOF {
 					return nil
 				}
@@ -134,6 +135,7 @@ func (c *Client) SubscribeChan(stream string, ch chan *Event) error {
 				// Read each new line and process the type of event
 				event, err := reader.ReadEvent()
 				if err != nil {
+					log.WithError(err).Error("sse:SubscribeChan: reader error")
 					if err == io.EOF {
 						c.cleanup(resp, ch)
 						return nil
@@ -167,7 +169,8 @@ func (c *Client) SubscribeChan(stream string, ch chan *Event) error {
 		}
 
 		err := backoff.Retry(operation, backoff.NewExponentialBackOff())
-		if err != nil && !connected {
+		if err != nil {
+			log.WithError(err).Error("sse:SubscribeChan: backoff error")
 			errch <- err
 		}
 	}()
